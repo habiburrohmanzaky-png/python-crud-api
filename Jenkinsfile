@@ -20,22 +20,38 @@ pipeline {
             }
         }
 
-        stage('2. Code Syntax Verification') {
+        stage('2. Get Git Commit SHA') {
+            steps {
+                script {
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse --short=7 HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Docker Image Tag: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('3. Code Syntax Verification') {
             steps {
                 echo 'Checking Python syntax...'
                 sh 'python3 -m py_compile app.py'
             }
         }
 
-        stage('3. Build Docker Image') {
+        stage('4. Build Docker Image') {
             steps {
                 echo 'Building Docker image...'
-                sh 'docker build -t ${REGISTRY_NAME}:${BUILD_NUMBER} .'
-                sh 'docker tag ${REGISTRY_NAME}:${BUILD_NUMBER} ${REGISTRY_NAME}:latest'
+
+                sh '''
+                    docker build -t ${REGISTRY_NAME}:${IMAGE_TAG} .
+                    docker tag ${REGISTRY_NAME}:${IMAGE_TAG} ${REGISTRY_NAME}:latest
+                '''
             }
         }
 
-        stage('4. Automated Deployment') {
+        stage('5. Automated Deployment') {
             steps {
                 echo 'Deploying application...'
 
@@ -52,12 +68,12 @@ pipeline {
                         --network ${DOCKER_NETWORK} \
                         -p ${PORT_MAPPING} \
                         -v ${VOLUME_NAME}:/var/lib/backend_data \
-                        ${REGISTRY_NAME}:latest
+                        ${REGISTRY_NAME}:${IMAGE_TAG}
                 '''
             }
         }
 
-        stage('5. Health Check') {
+        stage('6. Health Check') {
             steps {
                 echo 'Checking API health...'
 
