@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -10,6 +11,7 @@ pipeline {
     }
 
     stages {
+
         stage('1. Checkout Code') {
             steps {
                 echo 'Checking out source code from GitHub'
@@ -49,9 +51,31 @@ pipeline {
 
         stage('5. Health Check') {
             steps {
-                sh 'sleep 3'
-                sh 'curl -fsS http://localhost:5000/health'
-                sh 'docker logs --tail 20 ${CONTAINER_NAME}'
+                sh '''
+                    echo "Starting API Health Check..."
+
+                    sleep 3
+
+                    for i in $(seq 1 10); do
+                        if curl -fsS http://host.docker.internal:5000/health; then
+                            echo ""
+                            echo "Health Check SUCCESS"
+
+                            docker logs --tail 20 ${CONTAINER_NAME}
+
+                            exit 0
+                        fi
+
+                        echo "Waiting for API... Attempt $i/10"
+                        sleep 2
+                    done
+
+                    echo "Health Check FAILED"
+
+                    docker logs --tail 50 ${CONTAINER_NAME} || true
+
+                    exit 1
+                '''
             }
         }
     }
